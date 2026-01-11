@@ -1,0 +1,10 @@
+pyside6
+sounddevice
+vosk
+keyboard
+deep-translator
+SpeechRecognition
+openai-whisper
+numpy
+torch
+webrtcvad

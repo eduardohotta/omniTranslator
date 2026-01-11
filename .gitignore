@@ -1,0 +1,38 @@
+# --- OmniTranslator Git Ignore ---
+
+# 1. Grandes Modelos de IA (NUNCA enviar para o Git)
+model_big/
+model_small/
+vosk-model-*/
+
+# 2. Pastas de Build (Arquivos temporários do PyInstaller)
+build/
+dist/
+*.exe
+!dist/OmniTranslator.exe # OPCIONAL: remova o '!' se não quiser o executável no Git (recomendado manter fora)
+
+# 3. Configurações Locais e Logs
+config.json
+*.log
+*.bat
+
+# 4. Cache do Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# 5. Ambientes Virtuais
+venv/
+.venv/
+env/
+.env
+.conda/
+
+# 6. IDEs e Outros
+.vscode/
+.idea/
+.DS_Store
+*.tmp
+OmniTranslator_new.exe
+apply_update.bat
