@@ -12,8 +12,18 @@ from PySide6.QtWidgets import (
     QProgressBar,
     QMessageBox,
     QFrame,
+    QTabWidget,
+    QGroupBox,
+    QSpinBox,
+    QLineEdit,
+    QTextEdit,
+    QSizePolicy,
+    QSpacerItem,
+    QGridLayout,
+    QStackedWidget,
 )
 from PySide6.QtCore import Qt, QThread, Signal, QTimer
+from PySide6.QtGui import QColor, QPalette, QFont
 import os
 from download_models import setup_vosk, is_model_installed
 from core.updater import AppUpdater
@@ -55,20 +65,52 @@ class NoWheelSlider(QSlider):
 
 
 class SettingsDialog(QDialog):
+    """Dialog de configurações melhorado com abas e preview ao vivo."""
+
+    settings_changed = Signal(dict)  # Sinal para preview ao vivo
+
     def __init__(
         self, parent=None, config=None, audio_handler=None, current_version="1.0.0"
     ):
         super().__init__(parent)
         self.setWindowTitle("Configurações - OmniTranslator")
+        self.original_config = config.copy() if config else {}
         self.config = config or {}
         self.audio_handler = audio_handler
         self.current_version = current_version
         self.updater = AppUpdater(current_version)
+
         # Frameless window for custom title bar
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
-        self.resize(550, 850)
+        self.resize(700, 750)  # Aumentado para acomodar abas
         self.old_pos = None
 
+        # Configurações padrão para reset
+        self.default_config = {
+            "source_lang": "pt",
+            "target_lang": "en",
+            "model_type": "google",
+            "opacity": 0.69,
+            "font_size": 14,
+            "always_on_top": True,
+            "x_pos": None,
+            "y_pos": 50,
+            "win_width": 1000,
+            "win_height": 240,
+            "audio_device_index": None,
+            "vad_threshold": 300,
+            "text_color": "white",
+            "trans_color": "#39FF14",
+            "orig_color": None,
+            "trans_font_size": 19,
+            "orig_font_size": None,
+            "text_align": "center",
+        }
+
+        self._setup_ui()
+
+    def _setup_ui(self):
+        """Configura a interface do usuário com abas."""
         # Apply Premium Stylesheet
         self.setStyleSheet("""
             QDialog {
@@ -293,12 +335,21 @@ class SettingsDialog(QDialog):
         lbl.setObjectName("SectionHeader")
         audio_lyt.addWidget(lbl)
 
-        audio_lyt.addWidget(QLabel("Dispositivo de Entrada:"))
+        device_lbl = QLabel("🎤 Dispositivo de Entrada:")
+        device_lbl.setToolTip(
+            "Selecione o microfone que será usado para captura de áudio"
+        )
+        audio_lyt.addWidget(device_lbl)
         self.device_combo = NoWheelComboBox()
+        self.device_combo.setToolTip("Escolha o microfone conectado ao seu computador")
         self._populate_devices()
         audio_lyt.addWidget(self.device_combo)
 
-        audio_lyt.addWidget(QLabel("Algoritmo de Reconhecimento:"))
+        model_lbl = QLabel("🧠 Algoritmo de Reconhecimento:")
+        model_lbl.setToolTip(
+            "Escolha o motor de reconhecimento de voz. 'Ultra (Google)' é mais preciso mas requer internet"
+        )
+        audio_lyt.addWidget(model_lbl)
         model_row = QHBoxLayout()
         self.model_combo = NoWheelComboBox()
         self.model_combo.addItem("Rápido (Vosk Small)", "small")
@@ -319,10 +370,17 @@ class SettingsDialog(QDialog):
         self.progress_bar.setVisible(False)
         audio_lyt.addWidget(self.progress_bar)
 
-        audio_lyt.addWidget(QLabel("Sensibilidade Manual (VAD Threshold):"))
+        vad_lbl = QLabel("🎚️ Sensibilidade Manual (VAD Threshold):")
+        vad_lbl.setToolTip(
+            "Ajuste a sensibilidade de detecção de voz. Valores menores = mais sensível (detecta sussurros), valores maiores = menos sensível (ignora ruídos)"
+        )
+        audio_lyt.addWidget(vad_lbl)
         self.vad_slider = NoWheelSlider(Qt.Horizontal)
         self.vad_slider.setRange(100, 5000)
         self.vad_slider.setValue(int(self.config.get("vad_threshold", 300)))
+        self.vad_slider.setToolTip(
+            "Arraste para ajustar: Esquerda = Mais sensível, Direita = Menos sensível"
+        )
         audio_lyt.addWidget(self.vad_slider)
 
         # Audio Monitor Section
@@ -398,8 +456,13 @@ class SettingsDialog(QDialog):
         lbl.setObjectName("SectionHeader")
         trans_lyt.addWidget(lbl)
 
-        trans_lyt.addWidget(QLabel("Traduzir para:"))
+        lang_lbl = QLabel("🌍 Traduzir para:")
+        lang_lbl.setToolTip(
+            "Selecione o idioma para o qual o texto será traduzido automaticamente"
+        )
+        trans_lyt.addWidget(lang_lbl)
         self.lang_combo = NoWheelComboBox()
+        self.lang_combo.setToolTip("Escolha o idioma de destino da tradução")
         langs = [
             ("Inglês", "en"),
             ("Espanhol", "es"),
@@ -430,36 +493,54 @@ class SettingsDialog(QDialog):
         lbl.setObjectName("SectionHeader")
         visual_lyt.addWidget(lbl)
 
-        visual_lyt.addWidget(QLabel("Largura do Painel:"))
+        width_lbl = QLabel("📏 Largura do Painel:")
+        width_lbl.setToolTip("Define a largura da janela de tradução em pixels")
+        visual_lyt.addWidget(width_lbl)
         self.width_slider = NoWheelSlider(Qt.Horizontal)
         self.width_slider.setRange(400, 1920)
         self.width_slider.setValue(self.config.get("win_width", 1000))
+        self.width_slider.setToolTip("Arraste para ajustar a largura da janela")
         visual_lyt.addWidget(self.width_slider)
 
-        visual_lyt.addWidget(QLabel("Altura do Painel:"))
+        height_lbl = QLabel("📐 Altura do Painel:")
+        height_lbl.setToolTip("Define a altura da janela de tradução em pixels")
+        visual_lyt.addWidget(height_lbl)
         self.height_slider = NoWheelSlider(Qt.Horizontal)
         self.height_slider.setRange(100, 600)
         self.height_slider.setValue(self.config.get("win_height", 240))
+        self.height_slider.setToolTip("Arraste para ajustar a altura da janela")
         visual_lyt.addWidget(self.height_slider)
 
-        visual_lyt.addWidget(QLabel("Alinhamento do Texto:"))
+        align_lbl = QLabel("📍 Alinhamento do Texto:")
+        align_lbl.setToolTip(
+            "Escolha onde o texto aparecerá na janela: topo, meio ou base"
+        )
+        visual_lyt.addWidget(align_lbl)
         self.align_combo = NoWheelComboBox()
         self.align_combo.addItem("Topo", "top")
         self.align_combo.addItem("Meio", "center")
         self.align_combo.addItem("Baixo", "bottom")
+        self.align_combo.setToolTip("Posicionamento vertical do texto na janela")
         curr_align = self.config.get("text_align", "top")
         idx = self.align_combo.findData(curr_align)
         if idx >= 0:
             self.align_combo.setCurrentIndex(idx)
         visual_lyt.addWidget(self.align_combo)
 
-        visual_lyt.addWidget(QLabel("Transparência do Fundo:"))
+        opacity_lbl = QLabel("👻 Transparência do Fundo:")
+        opacity_lbl.setToolTip(
+            "Ajuste a transparência do fundo da janela. 0% = totalmente transparente, 100% = opaco"
+        )
+        visual_lyt.addWidget(opacity_lbl)
         self.opacity_slider = NoWheelSlider(Qt.Horizontal)
         self.opacity_slider.setRange(0, 100)
         self.opacity_slider.setValue(int(self.config.get("opacity", 0.7) * 100))
+        self.opacity_slider.setToolTip("0% = Invisível, 100% = Totalmente opaco")
         visual_lyt.addWidget(self.opacity_slider)
 
-        visual_lyt.addWidget(QLabel("Cor da Tradução:"))
+        color_lbl = QLabel("🎨 Cor da Tradução:")
+        color_lbl.setToolTip("Escolha a cor do texto traduzido")
+        visual_lyt.addWidget(color_lbl)
         self.trans_color_combo = NoWheelComboBox()
         colors = [
             ("Verde Neon", "#39FF14"),
@@ -470,21 +551,38 @@ class SettingsDialog(QDialog):
         ]
         for name, code in colors:
             self.trans_color_combo.addItem(name, code)
+        self.trans_color_combo.setToolTip("Cor do texto que aparecerá na tradução")
         curr_t_color = self.config.get("trans_color", "#39FF14")
         idx = self.trans_color_combo.findData(curr_t_color)
         if idx >= 0:
             self.trans_color_combo.setCurrentIndex(idx)
         visual_lyt.addWidget(self.trans_color_combo)
 
-        visual_lyt.addWidget(QLabel("Tamanho da Fonte (Tradução):"))
+        font_lbl = QLabel("🔤 Tamanho da Fonte (Tradução):")
+        font_lbl.setToolTip("Ajuste o tamanho da fonte do texto traduzido")
+        visual_lyt.addWidget(font_lbl)
         self.trans_font_slider = NoWheelSlider(Qt.Horizontal)
         self.trans_font_slider.setRange(14, 72)
         self.trans_font_slider.setValue(self.config.get("trans_font_size", 24))
+        self.trans_font_slider.setToolTip("Tamanho da fonte em pixels")
         visual_lyt.addWidget(self.trans_font_slider)
 
         self.top_check = QCheckBox("Manter sempre visível sobre outros apps")
         self.top_check.setChecked(self.config.get("always_on_top", True))
+        self.top_check.setToolTip(
+            "Se ativado, a janela de tradução ficará sempre visível sobre outras janelas"
+        )
         visual_lyt.addWidget(self.top_check)
+
+        # Adiciona Preview ao Vivo
+        preview_widget = self._create_preview_widget()
+        visual_lyt.addWidget(preview_widget)
+
+        # Conecta mudanças para atualizar preview automaticamente
+        self.trans_color_combo.currentIndexChanged.connect(self._update_preview)
+        self.trans_font_slider.valueChanged.connect(self._update_preview)
+        self.opacity_slider.valueChanged.connect(self._update_preview)
+        self.align_combo.currentIndexChanged.connect(self._update_preview)
 
         layout.addWidget(visual_card)
 
@@ -496,16 +594,28 @@ class SettingsDialog(QDialog):
         footer_branding.setAlignment(Qt.AlignCenter)
         main_vbox.addWidget(footer_branding)
 
-        # Footer Buttons
+        # Footer Buttons com botão de Reset
         btn_layout = QHBoxLayout()
         btn_layout.setContentsMargins(0, 5, 0, 5)
         btn_layout.setSpacing(15)
 
-        self.save_btn = QPushButton("SALVAR ALTERAÇÕES")
+        # Botão de Reset
+        self.reset_btn = QPushButton("🔄 Restaurar Padrão")
+        self.reset_btn.setToolTip(
+            "Restaura todas as configurações para os valores padrão"
+        )
+        self.reset_btn.clicked.connect(self.reset_to_defaults)
+        btn_layout.addWidget(self.reset_btn)
+
+        btn_layout.addStretch()
+
+        self.save_btn = QPushButton("💾 SALVAR ALTERAÇÕES")
         self.save_btn.setObjectName("SaveBtn")
+        self.save_btn.setToolTip("Salva todas as alterações e fecha a janela")
         self.save_btn.clicked.connect(self.save_settings)
 
-        self.cancel_btn = QPushButton("CANCELAR")
+        self.cancel_btn = QPushButton("❌ CANCELAR")
+        self.cancel_btn.setToolTip("Descarta as alterações e fecha a janela")
         self.cancel_btn.clicked.connect(self.reject)
 
         btn_layout.addWidget(self.save_btn, 2)
@@ -517,6 +627,9 @@ class SettingsDialog(QDialog):
             self._update_download_btn_visibility
         )
         self._update_download_btn_visibility()
+
+        # Inicializa o preview ao vivo
+        self._update_preview()
 
     def mousePressEvent(self, event):
         if event.button() == Qt.LeftButton:
@@ -769,3 +882,171 @@ class SettingsDialog(QDialog):
         self.config["always_on_top"] = self.top_check.isChecked()
         self.config["text_align"] = self.align_combo.currentData()
         self.accept()
+
+    def _create_preview_widget(self):
+        """Cria widget de preview das configurações visuais."""
+        preview_box = QGroupBox("👁️ Preview (Visualização ao Vivo)")
+        preview_box.setStyleSheet("""
+            QGroupBox {
+                color: #39FF14;
+                font-weight: bold;
+                border: 2px solid #333333;
+                border-radius: 8px;
+                margin-top: 10px;
+                padding-top: 10px;
+            }
+            QGroupBox::title {
+                subcontrol-origin: margin;
+                left: 10px;
+                padding: 0 5px;
+            }
+        """)
+
+        preview_layout = QVBoxLayout(preview_box)
+
+        # Container do preview
+        self.preview_container = QFrame()
+        self.preview_container.setMinimumHeight(100)
+        self.preview_container.setMaximumHeight(120)
+        self.preview_container.setStyleSheet("""
+            QFrame {
+                background-color: #1E1E1E;
+                border: 1px solid #444444;
+                border-radius: 8px;
+            }
+        """)
+
+        preview_inner = QVBoxLayout(self.preview_container)
+
+        # Label de preview do texto original
+        self.preview_orig_label = QLabel("Texto original aparecerá aqui")
+        self.preview_orig_label.setAlignment(Qt.AlignCenter)
+        preview_inner.addWidget(self.preview_orig_label)
+
+        # Label de preview da tradução
+        self.preview_trans_label = QLabel("Tradução aparecerá aqui")
+        self.preview_trans_label.setAlignment(Qt.AlignCenter)
+        preview_inner.addWidget(self.preview_trans_label)
+
+        preview_layout.addWidget(self.preview_container)
+
+        # Botão de atualizar preview
+        self.update_preview_btn = QPushButton("🔄 Atualizar Preview")
+        self.update_preview_btn.setToolTip(
+            "Clique para ver como ficará com as configurações atuais"
+        )
+        self.update_preview_btn.clicked.connect(self._update_preview)
+        preview_layout.addWidget(self.update_preview_btn)
+
+        return preview_box
+
+    def _update_preview(self):
+        """Atualiza o preview com as configurações atuais."""
+        # Obtém valores atuais
+        trans_color = self.trans_color_combo.currentData()
+        trans_font_size = self.trans_font_slider.value()
+        opacity = self.opacity_slider.value() / 100.0
+        align = self.align_combo.currentData()
+
+        # Aplica ao preview
+        self.preview_trans_label.setStyleSheet(f"""
+            QLabel {{
+                color: {trans_color};
+                font-size: {trans_font_size}px;
+                font-weight: bold;
+                background-color: rgba(18, 18, 18, {opacity});
+                padding: 10px;
+                border-radius: 5px;
+            }}
+        """)
+
+        self.preview_orig_label.setStyleSheet(f"""
+            QLabel {{
+                color: white;
+                font-size: 14px;
+                background-color: rgba(18, 18, 18, {opacity});
+                padding: 5px;
+                border-radius: 5px;
+            }}
+        """)
+
+        # Atualiza alinhamento
+        if align == "top":
+            self.preview_container.setLayoutDirection(Qt.LeftToRight)
+        elif align == "center":
+            self.preview_orig_label.setAlignment(Qt.AlignCenter)
+            self.preview_trans_label.setAlignment(Qt.AlignCenter)
+        else:  # bottom
+            self.preview_orig_label.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
+            self.preview_trans_label.setAlignment(Qt.AlignBottom | Qt.AlignHCenter)
+
+        # Emite sinal para preview no overlay principal
+        temp_config = self.config.copy()
+        temp_config.update(
+            {
+                "trans_color": trans_color,
+                "trans_font_size": trans_font_size,
+                "opacity": opacity,
+                "text_align": align,
+            }
+        )
+        self.settings_changed.emit(temp_config)
+
+    def reset_to_defaults(self):
+        """Reseta todas as configurações para o padrão."""
+        reply = QMessageBox.question(
+            self,
+            "Resetar Configurações",
+            "Tem certeza que deseja restaurar todas as configurações para o padrão?\n\n"
+            "Isso não pode ser desfeito.",
+            QMessageBox.Yes | QMessageBox.No,
+            QMessageBox.No,
+        )
+
+        if reply == QMessageBox.Yes:
+            self.config = self.default_config.copy()
+            self._apply_settings_to_ui()
+            QMessageBox.information(
+                self,
+                "Configurações Resetadas",
+                "As configurações foram restauradas para o padrão.\n"
+                "Clique em 'SALVAR ALTERAÇÕES' para aplicar as mudanças.",
+            )
+
+    def _apply_settings_to_ui(self):
+        """Aplica as configurações atuais aos widgets da UI."""
+        # Áudio
+        self.vad_slider.setValue(self.config.get("vad_threshold", 300))
+
+        # Modelo
+        model_type = self.config.get("model_type", "google")
+        idx = self.model_combo.findData(model_type)
+        if idx >= 0:
+            self.model_combo.setCurrentIndex(idx)
+
+        # Idioma
+        target_lang = self.config.get("target_lang", "en")
+        idx = self.lang_combo.findData(target_lang)
+        if idx >= 0:
+            self.lang_combo.setCurrentIndex(idx)
+
+        # Visual
+        self.width_slider.setValue(self.config.get("win_width", 1000))
+        self.height_slider.setValue(self.config.get("win_height", 240))
+        self.opacity_slider.setValue(int(self.config.get("opacity", 0.7) * 100))
+
+        align = self.config.get("text_align", "top")
+        idx = self.align_combo.findData(align)
+        if idx >= 0:
+            self.align_combo.setCurrentIndex(idx)
+
+        trans_color = self.config.get("trans_color", "#39FF14")
+        idx = self.trans_color_combo.findData(trans_color)
+        if idx >= 0:
+            self.trans_color_combo.setCurrentIndex(idx)
+
+        self.trans_font_slider.setValue(self.config.get("trans_font_size", 24))
+        self.top_check.setChecked(self.config.get("always_on_top", True))
+
+        # Atualiza preview
+        self._update_preview()
