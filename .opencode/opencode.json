@@ -1,0 +1,69 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "permission": {
+    /*
+     * Regra padrão:
+     * tudo pergunta antes de executar
+     */
+    "*": "ask",
+
+    /*
+     * Ler arquivos é seguro → libera direto
+     */
+    "read": "allow",
+
+    /*
+     * Listar diretórios também é ok
+     */
+    "ls": "allow",
+
+    /*
+     * Buscar código (grep, search etc.)
+     */
+    "search": "allow",
+
+    /*
+     * Edição de arquivos → SEMPRE perguntar
+     */
+    "edit": "ask",
+    "write": "ask",
+
+    /*
+     * Execução de shell é o mais perigoso → perguntar sempre
+     */
+    "bash": {
+      "*": "ask",
+
+      /*
+       * Comandos seguros que você usa toda hora
+       */
+      "npm install*": "allow",
+      "pnpm install*": "allow",
+      "yarn install*": "allow",
+      "npm run dev*": "allow",
+      "npm run build*": "allow",
+      "git status": "allow",
+      "git diff*": "allow",
+
+      /*
+       * Coisas perigosas → nunca permitir automático
+       */
+      "rm *": "deny",
+      "sudo *": "deny",
+      "git push*": "ask",
+      "git reset*": "ask",
+      "git clean*": "ask"
+    },
+
+    /*
+     * Evita que a IA saia mexendo fora do projeto
+     */
+    "external_directory": "deny",
+
+    /*
+     * Protege contra loop automático tentando corrigir erro infinitamente
+     */
+    "doom_loop": "ask"
+  }
+}
