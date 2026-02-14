@@ -1,40 +1,63 @@
-from PySide6.QtWidgets import (QDialog, QVBoxLayout, QLabel, QComboBox, 
-                                 QPushButton, QHBoxLayout, QSlider, QCheckBox, QScrollArea, QWidget, QProgressBar, QMessageBox, QFrame)
+from PySide6.QtWidgets import (
+    QDialog,
+    QVBoxLayout,
+    QLabel,
+    QComboBox,
+    QPushButton,
+    QHBoxLayout,
+    QSlider,
+    QCheckBox,
+    QScrollArea,
+    QWidget,
+    QProgressBar,
+    QMessageBox,
+    QFrame,
+)
 from PySide6.QtCore import Qt, QThread, Signal, QTimer
 import os
 from download_models import setup_vosk, is_model_installed
 from core.updater import AppUpdater
 
+
 class DownloadThread(QThread):
     progress = Signal(int)
     finished = Signal(bool, str)
-    
+
     def __init__(self, model_type):
         super().__init__()
         self.model_type = model_type
-        
+
     def run(self):
         try:
-            path, msg = setup_vosk(self.model_type, progress_callback=self.progress.emit)
+            path, msg = setup_vosk(
+                self.model_type, progress_callback=self.progress.emit
+            )
             if path:
-                self.finished.emit(True, f"Modelo {self.model_type} baixado com sucesso!")
+                self.finished.emit(
+                    True, f"Modelo {self.model_type} baixado com sucesso!"
+                )
             else:
                 self.finished.emit(False, f"Falha no download: {msg}")
         except Exception as e:
             self.finished.emit(False, str(e))
+
 
 class NoWheelComboBox(QComboBox):
     def wheelEvent(self, event):
         # Ignora o scroll para evitar trocas acidentais
         event.ignore()
 
+
 class NoWheelSlider(QSlider):
     def wheelEvent(self, event):
         # Ignora o scroll no slider
         event.ignore()
 
+
 class SettingsDialog(QDialog):
-    def __init__(self, parent=None, config=None, audio_handler=None, current_version="1.0.0"):
+    def __init__(
+        self, parent=None, config=None, audio_handler=None, current_version="1.0.0"
+    ):
         super().__init__(parent)
         self.setWindowTitle("Configurações - OmniTranslator")
         self.config = config or {}
@@ -45,7 +68,7 @@ class SettingsDialog(QDialog):
         self.setWindowFlags(Qt.FramelessWindowHint | Qt.WindowStaysOnTopHint | Qt.Tool)
         self.resize(550, 850)
         self.old_pos = None
-        
+
         # Apply Premium Stylesheet
         self.setStyleSheet("""
             QDialog {
@@ -184,7 +207,7 @@ class SettingsDialog(QDialog):
         """)
 
         main_vbox = QVBoxLayout(self)
-        main_vbox.setContentsMargins(0, 0, 0, 0) # No margins for the main container
+        main_vbox.setContentsMargins(0, 0, 0, 0)  # No margins for the main container
         main_vbox.setSpacing(0)
 
         # --- CUSTOM TITLE BAR ---
@@ -218,18 +241,18 @@ class SettingsDialog(QDialog):
         """)
         title_bar_lyt = QHBoxLayout(title_bar)
         title_bar_lyt.setContentsMargins(0, 5, 0, 5)
-        
+
         title_lbl = QLabel("Configurações - Hotta Tecnologia")
         title_lbl.setObjectName("TitleText")
         title_bar_lyt.addWidget(title_lbl)
-        
+
         title_bar_lyt.addStretch()
-        
+
         self.close_title_btn = QPushButton("✕")
         self.close_title_btn.setObjectName("CloseBtnTitle")
         self.close_title_btn.clicked.connect(self.reject)
         title_bar_lyt.addWidget(self.close_title_btn)
-        
+
         main_vbox.addWidget(title_bar)
 
         # Content Container (to have margins)
@@ -265,11 +288,11 @@ class SettingsDialog(QDialog):
         audio_lyt = QVBoxLayout(audio_card)
         audio_lyt.setContentsMargins(20, 20, 20, 20)
         audio_lyt.setSpacing(12)
-        
+
         lbl = QLabel("🎤 ÁUDIO E MICROFONE")
         lbl.setObjectName("SectionHeader")
         audio_lyt.addWidget(lbl)
-        
+
         audio_lyt.addWidget(QLabel("Dispositivo de Entrada:"))
         self.device_combo = NoWheelComboBox()
         self._populate_devices()
@@ -283,9 +306,10 @@ class SettingsDialog(QDialog):
         self.model_combo.addItem("Ultra (Google Online)", "google")
         curr_model = self.config.get("model_type", "small")
         idx = self.model_combo.findData(curr_model)
-        if idx >= 0: self.model_combo.setCurrentIndex(idx)
+        if idx >= 0:
+            self.model_combo.setCurrentIndex(idx)
         model_row.addWidget(self.model_combo)
-        
+
         self.download_btn = QPushButton("Baixar")
         self.download_btn.clicked.connect(self.start_download)
         model_row.addWidget(self.download_btn)
@@ -300,60 +324,67 @@ class SettingsDialog(QDialog):
         self.vad_slider.setRange(100, 5000)
         self.vad_slider.setValue(int(self.config.get("vad_threshold", 300)))
         audio_lyt.addWidget(self.vad_slider)
-        
+
         # Audio Monitor Section
         monitor_label = QLabel("🎧 Monitor de Áudio em Tempo Real:")
-        monitor_label.setStyleSheet("color: #39FF14; font-weight: bold; margin-top: 10px;")
+        monitor_label.setStyleSheet(
+            "color: #39FF14; font-weight: bold; margin-top: 10px;"
+        )
         audio_lyt.addWidget(monitor_label)
-        
+
         # Monitor toggle button
         self.monitor_btn = QPushButton("▶ Iniciar Monitor")
         self.monitor_btn.setCheckable(True)
         self.monitor_btn.clicked.connect(self._toggle_monitor)
         audio_lyt.addWidget(self.monitor_btn)
-        
+
         # Energy level display
         self.energy_bar = QProgressBar()
         self.energy_bar.setRange(0, 5000)
         self.energy_bar.setValue(0)
         self.energy_bar.setTextVisible(True)
-        self.energy_bar.setFormat("Energia: %v | Threshold: " + str(int(self.config.get("vad_threshold", 300))))
+        self.energy_bar.setFormat(
+            "Energia: %v | Threshold: "
+            + str(int(self.config.get("vad_threshold", 300)))
+        )
         audio_lyt.addWidget(self.energy_bar)
-        
+
         # Update energy bar format when slider changes
-        self.vad_slider.valueChanged.connect(lambda v: self.energy_bar.setFormat(f"Energia: %v | Threshold: {v}"))
-        
+        self.vad_slider.valueChanged.connect(
+            lambda v: self.energy_bar.setFormat(f"Energia: %v | Threshold: {v}")
+        )
+
         # Monitoring state
         self.monitoring = False
         self.monitor_timer = QTimer()
         self.monitor_timer.timeout.connect(self._update_energy_display)
-        
+
         layout.addWidget(audio_card)
 
         # --- UPDATE & ABOUT CARD ---
         update_card = QFrame()
         update_card.setObjectName("Card")
         update_lyt = QVBoxLayout(update_card)
-        
+
         header = QLabel("🌍 SOBRE E ATUALIZAÇÕES")
         header.setObjectName("SectionHeader")
         update_lyt.addWidget(header)
-        
+
         info_lyt = QHBoxLayout()
         v_label = QLabel(f"Versão Atual: <b>{self.current_version}</b>")
         info_lyt.addWidget(v_label)
-        
+
         self.check_update_btn = QPushButton("Verificar Atualizações")
         self.check_update_btn.setMinimumHeight(35)
         self.check_update_btn.clicked.connect(self._check_for_updates)
         info_lyt.addWidget(self.check_update_btn)
         update_lyt.addLayout(info_lyt)
-        
+
         # Progress for update download
         self.update_progress = QProgressBar()
         self.update_progress.setVisible(False)
         update_lyt.addWidget(self.update_progress)
-        
+
         layout.addWidget(update_card)
 
         # --- TRANSLATION CARD ---
@@ -362,24 +393,30 @@ class SettingsDialog(QDialog):
         trans_lyt = QVBoxLayout(trans_card)
         trans_lyt.setContentsMargins(20, 20, 20, 20)
         trans_lyt.setSpacing(12)
-        
+
         lbl = QLabel("🌍 TRADUÇÃO E IDIOMA")
         lbl.setObjectName("SectionHeader")
         trans_lyt.addWidget(lbl)
-        
+
         trans_lyt.addWidget(QLabel("Traduzir para:"))
         self.lang_combo = NoWheelComboBox()
         langs = [
-            ("Inglês", "en"), ("Espanhol", "es"), ("Francês", "fr"), 
-            ("Alemão", "de"), ("Italiano", "it"), ("Japonês", "ja"), ("Chinês", "zh-CN")
+            ("Inglês", "en"),
+            ("Espanhol", "es"),
+            ("Francês", "fr"),
+            ("Alemão", "de"),
+            ("Italiano", "it"),
+            ("Japonês", "ja"),
+            ("Chinês", "zh-CN"),
         ]
         for name, code in langs:
             self.lang_combo.addItem(name, code)
         curr_lang = self.config.get("target_lang", "en")
         idx = self.lang_combo.findData(curr_lang)
-        if idx >= 0: self.lang_combo.setCurrentIndex(idx)
+        if idx >= 0:
+            self.lang_combo.setCurrentIndex(idx)
         trans_lyt.addWidget(self.lang_combo)
-        
+
         layout.addWidget(trans_card)
 
         # --- VISUAL CARD ---
@@ -388,17 +425,17 @@ class SettingsDialog(QDialog):
         visual_lyt = QVBoxLayout(visual_card)
         visual_lyt.setContentsMargins(20, 20, 20, 20)
         visual_lyt.setSpacing(12)
-        
+
         lbl = QLabel("✨ VISUAL E INTERFACE")
         lbl.setObjectName("SectionHeader")
         visual_lyt.addWidget(lbl)
-        
+
         visual_lyt.addWidget(QLabel("Largura do Painel:"))
         self.width_slider = NoWheelSlider(Qt.Horizontal)
         self.width_slider.setRange(400, 1920)
         self.width_slider.setValue(self.config.get("win_width", 1000))
         visual_lyt.addWidget(self.width_slider)
-        
+
         visual_lyt.addWidget(QLabel("Altura do Painel:"))
         self.height_slider = NoWheelSlider(Qt.Horizontal)
         self.height_slider.setRange(100, 600)
@@ -412,7 +449,8 @@ class SettingsDialog(QDialog):
         self.align_combo.addItem("Baixo", "bottom")
         curr_align = self.config.get("text_align", "top")
         idx = self.align_combo.findData(curr_align)
-        if idx >= 0: self.align_combo.setCurrentIndex(idx)
+        if idx >= 0:
+            self.align_combo.setCurrentIndex(idx)
         visual_lyt.addWidget(self.align_combo)
 
         visual_lyt.addWidget(QLabel("Transparência do Fundo:"))
@@ -420,20 +458,24 @@ class SettingsDialog(QDialog):
         self.opacity_slider.setRange(0, 100)
         self.opacity_slider.setValue(int(self.config.get("opacity", 0.7) * 100))
         visual_lyt.addWidget(self.opacity_slider)
-        
+
         visual_lyt.addWidget(QLabel("Cor da Tradução:"))
         self.trans_color_combo = NoWheelComboBox()
         colors = [
-            ("Verde Neon", "#39FF14"), ("Amarelo Sol", "yellow"), ("Ciano", "cyan"), 
-            ("Branco Puro", "white"), ("Laranja Vivo", "orange")
+            ("Verde Neon", "#39FF14"),
+            ("Amarelo Sol", "yellow"),
+            ("Ciano", "cyan"),
+            ("Branco Puro", "white"),
+            ("Laranja Vivo", "orange"),
         ]
         for name, code in colors:
             self.trans_color_combo.addItem(name, code)
         curr_t_color = self.config.get("trans_color", "#39FF14")
         idx = self.trans_color_combo.findData(curr_t_color)
-        if idx >= 0: self.trans_color_combo.setCurrentIndex(idx)
+        if idx >= 0:
+            self.trans_color_combo.setCurrentIndex(idx)
         visual_lyt.addWidget(self.trans_color_combo)
-        
+
         visual_lyt.addWidget(QLabel("Tamanho da Fonte (Tradução):"))
         self.trans_font_slider = NoWheelSlider(Qt.Horizontal)
         self.trans_font_slider.setRange(14, 72)
@@ -447,7 +489,9 @@ class SettingsDialog(QDialog):
         layout.addWidget(visual_card)
 
         # Footer Branding
-        footer_branding = QLabel("© 2026 Hotta Tecnologia - Todos os direitos reservados.")
+        footer_branding = QLabel(
+            "© 2026 Hotta Tecnologia - Todos os direitos reservados."
+        )
         footer_branding.setObjectName("FooterBranding")
         footer_branding.setAlignment(Qt.AlignCenter)
         main_vbox.addWidget(footer_branding)
@@ -456,20 +500,22 @@ class SettingsDialog(QDialog):
         btn_layout = QHBoxLayout()
         btn_layout.setContentsMargins(0, 5, 0, 5)
         btn_layout.setSpacing(15)
-        
+
         self.save_btn = QPushButton("SALVAR ALTERAÇÕES")
         self.save_btn.setObjectName("SaveBtn")
         self.save_btn.clicked.connect(self.save_settings)
-        
+
         self.cancel_btn = QPushButton("CANCELAR")
         self.cancel_btn.clicked.connect(self.reject)
-        
+
         btn_layout.addWidget(self.save_btn, 2)
         btn_layout.addWidget(self.cancel_btn, 1)
         content_vbox.addLayout(btn_layout)
 
         # Connect model change for download button
-        self.model_combo.currentIndexChanged.connect(self._update_download_btn_visibility)
+        self.model_combo.currentIndexChanged.connect(
+            self._update_download_btn_visibility
+        )
         self._update_download_btn_visibility()
 
     def mousePressEvent(self, event):
@@ -539,13 +585,15 @@ class SettingsDialog(QDialog):
     def start_download(self):
         m_type = self.model_combo.currentData()
         if m_type == "google":
-            QMessageBox.information(self, "Google Mode", "O modo Google Online não precisa de download.")
+            QMessageBox.information(
+                self, "Google Mode", "O modo Google Online não precisa de download."
+            )
             return
 
         self.download_btn.setEnabled(False)
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
-        
+
         self.dl_thread = DownloadThread(m_type)
         self.dl_thread.progress.connect(self.progress_bar.setValue)
         self.dl_thread.finished.connect(self.finish_download)
@@ -572,36 +620,39 @@ class SettingsDialog(QDialog):
         devices = self.audio_handler.get_devices()
         current_index = self.config.get("audio_device_index", -1)
         for dev in devices:
-            self.device_combo.addItem(dev['name'], dev['index'])
+            self.device_combo.addItem(dev["name"], dev["index"])
         idx = self.device_combo.findData(current_index)
-        if idx >= 0: self.device_combo.setCurrentIndex(idx)
+        if idx >= 0:
+            self.device_combo.setCurrentIndex(idx)
 
     def _toggle_monitor(self):
         """Toggle real-time audio monitoring"""
         self.monitoring = not self.monitoring
-        
+
         if self.monitoring:
             self.monitor_btn.setText("⏸ Parar Monitor")
-            self.monitor_btn.setStyleSheet("background-color: #E74C3C; border-color: #E74C3C;")
+            self.monitor_btn.setStyleSheet(
+                "background-color: #E74C3C; border-color: #E74C3C;"
+            )
             self.monitor_timer.start(50)  # Update every 50ms
         else:
             self.monitor_btn.setText("▶ Iniciar Monitor")
             self.monitor_btn.setStyleSheet("")
             self.monitor_timer.stop()
             self.energy_bar.setValue(0)
-    
+
     def _update_energy_display(self):
         """Update energy level display from audio handler"""
         if not self.audio_handler or not self.monitoring:
             return
-        
+
         try:
             # Get current audio energy from the audio queue
             audio_data = self.audio_handler.get_audio()
             if audio_data:
                 _, _, energy = audio_data
                 self.energy_bar.setValue(int(energy))
-                
+
                 # Visual feedback: change color if above threshold
                 threshold = self.vad_slider.value()
                 if energy > threshold:
@@ -622,48 +673,71 @@ class SettingsDialog(QDialog):
             pass  # Silently ignore queue errors
 
     def _check_for_updates(self):
-        """Standard GitHub check"""
+        """Standard GitHub check with checksum verification"""
         self.check_update_btn.setEnabled(False)
         self.check_update_btn.setText("Verificando...")
-        
+
         # We can do this in a thread later if it blocks too much, but for now GitHub API is fast
-        has_update, latest_v, url = self.updater.check_for_updates()
-        
+        has_update, latest_v, url, checksum_url = self.updater.check_for_updates()
+
         if has_update:
-            reply = QMessageBox.question(self, "Atualização Disponível", 
-                                        f"Uma nova versão ({latest_v}) está disponível.\nDeseja baixar e atualizar agora?",
-                                        QMessageBox.Yes | QMessageBox.No)
+            reply = QMessageBox.question(
+                self,
+                "Atualização Disponível",
+                f"Uma nova versão ({latest_v}) está disponível.\nDeseja baixar e atualizar agora?",
+                QMessageBox.Yes | QMessageBox.No,
+            )
             if reply == QMessageBox.Yes:
-                self._start_update_download(url)
+                self._start_update_download(url, checksum_url)
             else:
                 self.check_update_btn.setEnabled(True)
                 self.check_update_btn.setText("Verificar Atualizações")
         else:
             if latest_v:
-                QMessageBox.information(self, "OmniTranslator", f"Você já está na versão mais recente ({self.current_version}).")
+                QMessageBox.information(
+                    self,
+                    "OmniTranslator",
+                    f"Você já está na versão mais recente ({self.current_version}).",
+                )
             else:
-                QMessageBox.warning(self, "Erro", "Não foi possível verificar atualizações. Verifique sua conexão.")
+                QMessageBox.warning(
+                    self,
+                    "Erro",
+                    "Não foi possível verificar atualizações. Verifique sua conexão.",
+                )
             self.check_update_btn.setEnabled(True)
             self.check_update_btn.setText("Verificar Atualizações")
 
-    def _start_update_download(self, url):
+    def _start_update_download(self, url, checksum_url=None):
         self.update_progress.setVisible(True)
         self.update_progress.setValue(0)
         self.check_update_btn.setText("Baixando...")
-        
+
         # Using a QThread for download to not freeze UI
         class UpdaterThread(QThread):
             progress = Signal(int)
             finished = Signal(bool)
-            def __init__(self, updater, url):
+            error = Signal(str)
+
+            def __init__(self, updater, url, checksum_url):
                 super().__init__()
                 self.updater = updater
                 self.url = url
-            def run(self):
-                success = self.updater.download_and_apply(self.url, self.progress.emit)
-                self.finished.emit(success)
+                self.checksum_url = checksum_url
 
-        self.up_thread = UpdaterThread(self.updater, url)
+            def run(self):
+                try:
+                    success = self.updater.download_and_apply(
+                        self.url,
+                        checksum_url=self.checksum_url,
+                        progress_callback=self.progress.emit,
+                    )
+                    self.finished.emit(success)
+                except Exception as e:
+                    self.error.emit(str(e))
+                    self.finished.emit(False)
+
+        self.up_thread = UpdaterThread(self.updater, url, checksum_url)
         self.up_thread.progress.connect(self.update_progress.setValue)
         self.up_thread.finished.connect(self._finish_update)
         self.up_thread.start()
@@ -671,7 +745,11 @@ class SettingsDialog(QDialog):
     def _finish_update(self, success):
         self.update_progress.setVisible(False)
         if success:
-            QMessageBox.information(self, "Pronto!", "A atualização foi baixada. O programa irá reiniciar agora.")
+            QMessageBox.information(
+                self,
+                "Pronto!",
+                "A atualização foi baixada. O programa irá reiniciar agora.",
+            )
             self.updater.restart_and_update()
         else:
             QMessageBox.critical(self, "Erro", "Falha ao baixar a atualização.")
